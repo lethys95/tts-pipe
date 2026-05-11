@@ -4,10 +4,17 @@ import logging
 import msgpack
 
 from ...models import TTSRequest
+from ...models.schemas import OmniVoiceVoiceConfig
 from ...services import TTSService, VoiceService
 from ...utils.audio_utils import AudioStreamEncoder
 from ...utils.config import CONFIG
 from ..common import load_voice_reference_or_raise, get_output_sample_rate
+
+_ENGINE_DEFAULT_VOICE_CONFIG = {
+    "chatterbox": {"type": "chatterbox"},
+    "omnivoice": {"type": "omnivoice"},
+    "fish-speech": {"type": "fish-speech"},
+}
 
 logger = logging.getLogger(__name__)
 
@@ -63,16 +70,24 @@ async def _stream_audio(
 
 async def handle_synthesize(identity_frames: list, request_dict: dict, voice_service: VoiceService, send_message):
     try:
+        if "voice_config" not in request_dict:
+            default = _ENGINE_DEFAULT_VOICE_CONFIG.get(CONFIG.tts_engine, {"type": "chatterbox"})
+            request_dict = {**request_dict, "voice_config": default}
+
         request = TTSRequest(**request_dict)
 
         voice_id = request.voice_config.voice_id or CONFIG.default_voice_id
-        voice_description = request.voice_description
+        voice_description = (
+            request.voice_config.voice_description
+            if isinstance(request.voice_config, OmniVoiceVoiceConfig)
+            else None
+        )
 
         if not voice_id and not voice_description:
             await _send_error(
                 identity_frames, send_message,
                 "No voice_id provided and no default configured (TTS_DEFAULT_VOICE_ID). "
-                "For OmniVoice voice design, send voice_description instead."
+                "For OmniVoice voice design, use OmniVoiceVoiceConfig with voice_description."
             )
             return
 

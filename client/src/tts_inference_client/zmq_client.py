@@ -2,14 +2,15 @@
 
 import json
 import zmq
-from typing import Iterator, Dict, Any, Optional
+from typing import Iterator
 
 from .base import TTSClient
 from .exceptions import ConnectionError, AuthenticationError, RequestError, StreamingError
 from .schemas import (
-    VoiceConfig, VoiceListResponse, 
+    ChatterboxVoiceConfig, OmniVoiceVoiceConfig, FishSpeechVoiceConfig,
+    VoiceConfig, VoiceListResponse,
     VoiceUploadResponse, VoiceDeleteResponse,
-    HealthResponse, ReadyResponse
+    HealthResponse, ReadyResponse,
 )
 
 
@@ -38,40 +39,32 @@ class ZMQClient(TTSClient):
     def synthesize(
         self,
         text: str,
-        voice_mode: str = "default",
-        voice_config: Optional[VoiceConfig] = None,
+        voice_config: VoiceConfig | None = None,
         audio_format: str = "pcm",
-        sample_rate: Optional[int] = None,
-        use_turbo: bool = False,
+        sample_rate: int | None = None,
     ) -> Iterator[bytes]:
         """Synthesize speech from text with streaming.
-        
+
         Args:
             text: Text to synthesize
-            voice_mode: "default" or "clone"
-            voice_config: Voice configuration object (contains voice_name, voice_id, speed, exaggeration, cfg_weight, etc.)
-            audio_format: "pcm" or "vorbis"
+            voice_config: Engine-specific voice config; defaults to ChatterboxVoiceConfig()
+            audio_format: "pcm", "wav", or "vorbis"
             sample_rate: Output sample rate
-            use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
-            
+
         Yields:
             Audio data chunks
         """
-        # Use default voice_config if none provided
         if voice_config is None:
-            voice_config = VoiceConfig()
-        
-        # Build request
+            voice_config = ChatterboxVoiceConfig()
+
         request = {
             "type": "synthesize",
             "api_key": self.api_key,
             "text": text,
-            "voice_mode": voice_mode,
             "voice_config": voice_config.to_dict(),
             "audio_format": audio_format,
-            "use_turbo": use_turbo,
         }
-        
+
         if sample_rate:
             request["sample_rate"] = sample_rate
         
@@ -320,7 +313,7 @@ class ZMQClient(TTSClient):
         except zmq.ZMQError as e:
             raise ConnectionError(f"Failed to delete voice: {e}")
     
-    def unload_model(self) -> Dict[str, Any]:
+    def unload_model(self) -> dict:
         """Manually unload TTS model from memory.
         
         Returns:

@@ -60,6 +60,13 @@ def resample_audio_for_speed(audio: np.ndarray, speed: float) -> np.ndarray:
 
 class ChatterboxTTSEngine(BaseTTSEngine):
     """ChatterboxTTS engine with voice cloning and turbo support."""
+    engine_name = "chatterbox"
+    engine_params = [
+        {"name": "speed",       "type": "float", "label": "Speed",       "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
+        {"name": "temperature", "type": "float", "label": "Temperature", "min": 0.1, "max": 2.0, "step": 0.05, "default": 0.8},
+        {"name": "exaggeration","type": "float", "label": "Exaggeration","min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5},
+        {"name": "cfg_weight",  "type": "float", "label": "CFG Weight",  "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.0},
+    ]
     
     def __init__(self, inactivity_timeout: int = 600, keep_warm: bool = False):
         """Initialize ChatterboxTTS engine.

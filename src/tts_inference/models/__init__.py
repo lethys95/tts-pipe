@@ -3,6 +3,9 @@
 from .schemas import (
     BaseVoiceConfig,
     ChatterboxVoiceConfig,
+    OmniVoiceVoiceConfig,
+    FishSpeechVoiceConfig,
+    VoiceConfig,
     TTSRequest,
     VoiceUploadRequest,
     VoiceInfo,
@@ -20,6 +23,9 @@ from .database import VoiceDatabase
 __all__ = [
     "BaseVoiceConfig",
     "ChatterboxVoiceConfig",
+    "OmniVoiceVoiceConfig",
+    "FishSpeechVoiceConfig",
+    "VoiceConfig",
     "TTSRequest",
     "VoiceUploadRequest",
     "VoiceInfo",

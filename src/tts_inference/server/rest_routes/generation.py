@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from fastapi.responses import StreamingResponse
 
 from ...models import TTSRequest
+from ...models.schemas import OmniVoiceVoiceConfig
 from ...auth import verify_api_key
 from ...services import TTSService, VoiceService
 from ...utils.config import CONFIG
@@ -33,7 +34,7 @@ async def _resolve_voice(
         voice_transcript = await voice_service.get_voice_transcript(voice_id) if voice_reference is not None else None
         return voice_reference, voice_transcript
 
-    if request.voice_description:
+    if isinstance(request.voice_config, OmniVoiceVoiceConfig) and request.voice_config.voice_description:
         return None, None
 
     if raise_on_not_found:
@@ -104,7 +105,11 @@ async def websocket_tts(
             await websocket.close(code=1003)
             return
 
-        if not voice_id and not request.voice_description:
+        has_design = (
+            isinstance(request.voice_config, OmniVoiceVoiceConfig)
+            and request.voice_config.voice_description
+        )
+        if not voice_id and not has_design:
             await websocket.send_json({"error": "Provide voice_id or voice_description"})
             await websocket.close(code=1003)
             return

@@ -4,6 +4,7 @@ from .base import TTSClient
 from .zmq_client import ZMQClient
 from .http_client import HTTPClient
 from .exceptions import TTSClientError, ConnectionError, AuthenticationError
+from .schemas import ChatterboxVoiceConfig, OmniVoiceVoiceConfig, FishSpeechVoiceConfig
 
 __version__ = "0.1.0"
 
@@ -14,6 +15,9 @@ __all__ = [
     "TTSClientError",
     "ConnectionError",
     "AuthenticationError",
+    "ChatterboxVoiceConfig",
+    "OmniVoiceVoiceConfig",
+    "FishSpeechVoiceConfig",
 ]
 
 

@@ -18,6 +18,13 @@ except ImportError:
     OMNIVOICE_AVAILABLE = False
     OmniVoiceTTSEngine = None
 
+try:
+    from tts_inference.tts.fish_speech_tts import FishSpeechTTSEngine
+    FISH_SPEECH_AVAILABLE = True
+except ImportError:
+    FISH_SPEECH_AVAILABLE = False
+    FishSpeechTTSEngine = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +37,18 @@ def _build_engine() -> BaseTTSEngine:
             )
         return OmniVoiceTTSEngine(
             inactivity_timeout=CONFIG.offload_timeout,
-            keep_warm=CONFIG.keep_warm
+            keep_warm=CONFIG.keep_warm,
+        )
+
+    if CONFIG.tts_engine == "fish-speech":
+        if not FISH_SPEECH_AVAILABLE:
+            raise ImportError(
+                "fish-speech is not installed. "
+                "Install with: uv sync --extra fish-speech"
+            )
+        return FishSpeechTTSEngine(
+            inactivity_timeout=CONFIG.offload_timeout,
+            keep_warm=CONFIG.keep_warm,
         )
 
     if not CHATTERBOX_AVAILABLE:
@@ -40,7 +58,7 @@ def _build_engine() -> BaseTTSEngine:
         )
     return ChatterboxTTSEngine(
         inactivity_timeout=CONFIG.offload_timeout,
-        keep_warm=CONFIG.keep_warm
+        keep_warm=CONFIG.keep_warm,
     )
 
 

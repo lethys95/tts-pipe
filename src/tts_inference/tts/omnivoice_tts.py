@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 class OmniVoiceTTSEngine(BaseTTSEngine):
     """OmniVoice TTS engine — voice cloning, voice design, 600+ language support."""
+    engine_name = "omnivoice"
+    engine_params = [
+        {"name": "speed",          "type": "float", "label": "Speed",           "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
+        {"name": "num_step",       "type": "int",   "label": "Diffusion Steps", "min": 1,   "max": 200, "step": 1,    "default": 50},
+        {"name": "guidance_scale", "type": "float", "label": "Guidance Scale",  "min": 0.1, "max": 5.0, "step": 0.1,  "default": 1.0},
+    ]
 
     def __init__(self, inactivity_timeout: int = 600, keep_warm: bool = False):
         self.model: OmniVoice | None = None

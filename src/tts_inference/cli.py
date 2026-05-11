@@ -34,7 +34,7 @@ def run():
 @click.option("--reload", is_flag=True, help="Enable auto-reload for development")
 @click.option("--offload-timeout", default=None, type=int, help="Seconds of inactivity before offloading model (default: 600)")
 @click.option("--keep-warm", is_flag=True, help="Keep model loaded in memory (disable auto-offloading)")
-@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
+@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice", "fish-speech"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
 def fastapi(host, port, log_level, reload, offload_timeout, keep_warm, engine):
     """Run FastAPI HTTP/WebSocket server."""
     _apply_config_overrides(log_level=log_level, host=host, port=port, offload_timeout=offload_timeout, keep_warm=keep_warm, engine=engine)
@@ -61,7 +61,7 @@ def fastapi(host, port, log_level, reload, offload_timeout, keep_warm, engine):
 @click.option("--log-level", default=None, help="Log level (default: from env or INFO)")
 @click.option("--offload-timeout", default=None, type=int, help="Seconds of inactivity before offloading model (default: 600)")
 @click.option("--keep-warm", is_flag=True, help="Keep model loaded in memory")
-@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
+@click.option("--engine", default=None, type=click.Choice(["chatterbox", "omnivoice", "fish-speech"]), help="TTS engine to use (default: from TTS_ENGINE env or chatterbox)")
 def zmq(input_address, pub_address, log_level, offload_timeout, keep_warm, engine):
     """Run ZMQ ROUTER server.
 
@@ -197,12 +197,7 @@ def config_info():
 @click.option("--text", default="Hello world, this is a test of the text to speech system.", help="Text to synthesize")
 @click.option("--voice-id", required=True, help="Voice ID to use for synthesis")
 @click.option("--output-dir", default="./test_samples", help="Directory to save test files")
-@click.option("--turbo", is_flag=True, help="Use turbo model")
-@click.option("--temperature", default=None, type=float, help="Sampling temperature")
-@click.option("--top-p", default=None, type=float, help="Top-p sampling parameter")
-@click.option("--top-k", default=None, type=int, help="Top-k sampling parameter")
-@click.option("--repetition-penalty", default=None, type=float, help="Repetition penalty")
-def test_gen(text, voice_id, output_dir, turbo, temperature, top_p, top_k, repetition_penalty):
+def test_gen(text, voice_id, output_dir):
     """Generate test audio files in all formats for debugging."""
     setup_logging("INFO")
     logger = logging.getLogger(__name__)
@@ -211,7 +206,6 @@ def test_gen(text, voice_id, output_dir, turbo, temperature, top_p, top_k, repet
         Generating test samples...
         Text: {text}
         Output directory: {output_dir}
-        Turbo mode: {turbo}
     """))
 
     try:
@@ -219,11 +213,6 @@ def test_gen(text, voice_id, output_dir, turbo, temperature, top_p, top_k, repet
             text=text,
             voice_id=voice_id,
             output_dir=output_dir,
-            use_turbo=turbo,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            repetition_penalty=repetition_penalty,
         ))
 
         click.echo(dedent(f"""\

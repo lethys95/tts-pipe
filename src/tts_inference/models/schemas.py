@@ -1,18 +1,17 @@
 """Pydantic models for request and response schemas."""
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Literal
+from typing import Annotated, Literal
 from datetime import datetime
+
 import msgpack
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BaseVoiceConfig(BaseModel):
-    """Base voice configuration for TTS synthesis."""
-
     voice_id: str | None = Field(None, description="ID of uploaded voice; omit to use server default")
     speed: float = Field(1.0, ge=0.1, le=3.0, description="Speech speed multiplier")
 
-    @field_validator('voice_id')
+    @field_validator("voice_id")
     @classmethod
     def validate_voice_id(cls, v):
         if v is not None and not v.strip():
@@ -28,37 +27,54 @@ class BaseVoiceConfig(BaseModel):
 
 
 class ChatterboxVoiceConfig(BaseVoiceConfig):
-    """ChatterboxTTS-specific voice configuration."""
-
+    type: Literal["chatterbox"] = "chatterbox"
+    use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS")
     exaggeration: float = Field(0.5, ge=0.0, le=1.0, description="Exaggeration level for expressiveness")
     cfg_weight: float = Field(0.5, ge=0.0, le=1.0, description="Classifier-free guidance weight")
     temperature: float = Field(0.8, ge=0.1, le=2.0, description="Sampling temperature for variability")
     repetition_penalty: float = Field(1.2, ge=1.0, le=2.0, description="Penalty for repetitive tokens")
 
 
-class TTSRequest(BaseModel):
-    """Request model for TTS synthesis."""
+class OmniVoiceVoiceConfig(BaseVoiceConfig):
+    type: Literal["omnivoice"] = "omnivoice"
+    voice_description: str | None = Field(None, description="Describe the desired voice (e.g. 'female, British accent')")
+    language: str | None = Field(None, description="BCP-47 language code hint")
+    num_step: int = Field(50, ge=1, le=200, description="Diffusion steps")
+    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Classifier-free guidance scale")
 
+
+class FishSpeechVoiceConfig(BaseVoiceConfig):
+    type: Literal["fish-speech"] = "fish-speech"
+    temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    top_p: float = Field(0.7, ge=0.0, le=1.0, description="Nucleus sampling parameter")
+    repetition_penalty: float = Field(1.2, ge=1.0, le=2.0, description="Penalty for repetitive tokens")
+    chunk_length: int = Field(200, ge=100, le=1000, description="Text chunk length for generation")
+    seed: int | None = Field(None, description="Random seed for reproducibility")
+    normalize: bool = Field(True, description="Normalize text before synthesis")
+
+
+VoiceConfig = Annotated[
+    ChatterboxVoiceConfig | OmniVoiceVoiceConfig | FishSpeechVoiceConfig,
+    Field(discriminator="type"),
+]
+
+
+class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=10000, description="Text to synthesize")
-    voice_config: ChatterboxVoiceConfig = Field(default_factory=ChatterboxVoiceConfig, description="Voice configuration")  # type: ignore[call-arg]
+    voice_config: VoiceConfig = Field(default_factory=ChatterboxVoiceConfig)
     voice_id: str | None = Field(None, description="Shorthand voice ID; merged into voice_config if voice_config.voice_id is not set")
-    voice_description: str | None = Field(None, description="OmniVoice voice design: describe the desired voice (e.g. 'female, British accent')")
-    language: str | None = Field(None, description="BCP-47 language code hint (OmniVoice)")
     audio_format: Literal["pcm", "wav", "vorbis"] = Field("pcm", description="Output audio format")
     sample_rate: int | None = Field(None, ge=20480, le=420480, description="Output sample rate (defaults to model.sr)")
-    use_turbo: bool = Field(False, description="Use ChatterboxTurboTTS (chatterbox only)")
-    num_step: int = Field(50, ge=1, le=200, description="Diffusion steps (OmniVoice only)")
-    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Classifier-free guidance scale (OmniVoice only)")
 
-    @field_validator('text')
+    @field_validator("text")
     @classmethod
     def validate_text(cls, v):
         if not v.strip():
             raise ValueError("Text cannot be empty")
         return v
 
-    @model_validator(mode='after')
-    def merge_voice_id(self) -> 'TTSRequest':
+    @model_validator(mode="after")
+    def merge_voice_id(self) -> "TTSRequest":
         if self.voice_id and not self.voice_config.voice_id:
             self.voice_config.voice_id = self.voice_id
         return self
@@ -72,13 +88,11 @@ class TTSRequest(BaseModel):
 
 
 class VoiceUploadRequest(BaseModel):
-    """Request model for voice upload (form data)."""
-
     voice_id: str = Field(..., min_length=1, max_length=100, description="Unique identifier for the voice")
     sample_rate: int = Field(..., ge=20480, le=420480, description="Sample rate of the audio file")
     voice_transcript: str = Field(..., min_length=1, max_length=1000, description="Transcript of what is spoken in the audio file")
 
-    @field_validator('voice_id')
+    @field_validator("voice_id")
     @classmethod
     def validate_voice_id(cls, v):
         if not v.strip():
@@ -88,7 +102,7 @@ class VoiceUploadRequest(BaseModel):
             raise ValueError(f"voice_id cannot contain: {' '.join(invalid_chars)}")
         return v.strip()
 
-    @field_validator('voice_transcript')
+    @field_validator("voice_transcript")
     @classmethod
     def validate_transcript(cls, v):
         if not v.strip():
@@ -97,8 +111,6 @@ class VoiceUploadRequest(BaseModel):
 
 
 class VoiceInfo(BaseModel):
-    """Response model for voice information."""
-
     voice_id: str
     filename: str
     sample_rate: int
@@ -108,31 +120,23 @@ class VoiceInfo(BaseModel):
 
 
 class VoiceListResponse(BaseModel):
-    """Response model for listing voices."""
-
     voices: list[VoiceInfo]
     total: int
 
 
 class VoiceUploadResponse(BaseModel):
-    """Response model for voice upload."""
-
     success: bool
     voice_id: str
     message: str
 
 
 class VoiceDeleteResponse(BaseModel):
-    """Response model for voice deletion."""
-
     success: bool
     voice_id: str
     message: str
 
 
 class VoiceRenameResponse(BaseModel):
-    """Response model for voice rename."""
-
     success: bool
     old_voice_id: str
     new_voice_id: str
@@ -140,16 +144,12 @@ class VoiceRenameResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Response model for health check."""
-
     status: str
     version: str
     timestamp: str
 
 
 class ReadyResponse(BaseModel):
-    """Response model for readiness check."""
-
     ready: bool
     model_loaded: bool
     voice_dir_accessible: bool
@@ -157,15 +157,11 @@ class ReadyResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Response model for errors."""
-
     error: str
     detail: str | None = None
     code: str | None = None
 
 
 class ModelInfoResponse(BaseModel):
-    """Response model for model information."""
-
     model: str
     sample_rate: int | None = None

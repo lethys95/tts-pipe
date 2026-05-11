@@ -28,9 +28,24 @@ chatterbox = [
 omnivoice = [
     "omnivoice>=0.1.5",
 ]
+fish-speech = [
+    "fish-speech @ git+https://github.com/fishaudio/fish-speech.git",
+]
 
 [project.scripts]
 tts-inference = "tts_inference.cli:main"
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "chatterbox" },
+    { extra = "omnivoice" },
+    { extra = "fish-speech" },
+  ],
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]

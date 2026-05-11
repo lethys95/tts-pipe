@@ -2,7 +2,7 @@
 
 from .generation_handler import handle_synthesize
 from .voice_handler import handle_list_voices, handle_upload_voice, handle_delete_voice
-from .utility_handler import handle_health, handle_ready, handle_model_unload
+from .utility_handler import handle_health, handle_ready, handle_model_unload, handle_list_engines, handle_list_engine_params
 
 __all__ = [
     "handle_synthesize",
@@ -11,5 +11,7 @@ __all__ = [
     "handle_delete_voice",
     "handle_health",
     "handle_ready",
-    "handle_model_unload"
+    "handle_model_unload",
+    "handle_list_engines",
+    "handle_list_engine_params",
 ]

@@ -1,15 +1,15 @@
 """HTTP/WebSocket client for TTS Inference."""
 
 import requests
-from typing import Iterator, Dict, Any, Optional
+from typing import Iterator
 from urllib.parse import urljoin
 
 from .base import TTSClient
 from .exceptions import ConnectionError, AuthenticationError, RequestError, StreamingError
 from .schemas import (
-    TTSRequest, VoiceConfig, VoiceListResponse, 
+    TTSRequest, ChatterboxVoiceConfig, VoiceConfig, VoiceListResponse,
     VoiceUploadResponse, VoiceDeleteResponse,
-    HealthResponse, ReadyResponse
+    HealthResponse, ReadyResponse,
 )
 
 
@@ -33,36 +33,29 @@ class HTTPClient(TTSClient):
     def synthesize(
         self,
         text: str,
-        voice_mode: str = "default",
-        voice_config: Optional[VoiceConfig] = None,
+        voice_config: VoiceConfig | None = None,
         audio_format: str = "pcm",
-        sample_rate: Optional[int] = None,
-        use_turbo: bool = False,
+        sample_rate: int | None = None,
     ) -> Iterator[bytes]:
         """Synthesize speech from text with streaming.
-        
+
         Args:
             text: Text to synthesize
-            voice_mode: "default" or "clone"
-            voice_config: Voice configuration object (contains voice_name, voice_id, speed, exaggeration, cfg_weight, etc.)
-            audio_format: "pcm" or "vorbis"
+            voice_config: Engine-specific voice config; defaults to ChatterboxVoiceConfig()
+            audio_format: "pcm", "wav", or "vorbis"
             sample_rate: Output sample rate
-            use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
-            
+
         Yields:
             Audio data chunks
         """
-        # Use default voice_config if none provided
         if voice_config is None:
-            voice_config = VoiceConfig()
-        
+            voice_config = ChatterboxVoiceConfig()
+
         request = TTSRequest(
             text=text,
-            voice_mode=voice_mode,
             voice_config=voice_config,
             audio_format=audio_format,
             sample_rate=sample_rate,
-            use_turbo=use_turbo
         )
         
         # Make streaming request
@@ -229,7 +222,7 @@ class HTTPClient(TTSClient):
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Failed to delete voice: {e}")
     
-    def unload_model(self) -> Dict[str, Any]:
+    def unload_model(self) -> dict:
         """Manually unload TTS model from memory.
         
         Returns:

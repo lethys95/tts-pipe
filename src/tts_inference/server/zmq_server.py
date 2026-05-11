@@ -3,11 +3,12 @@
 import asyncio
 import json
 import logging
+
 import msgpack
 import zmq
 import zmq.asyncio
-from typing import Optional
 
+from ..services import get_synthesis_queue, stop_synthesis_queue
 from ..utils.config import CONFIG
 from .common import initialize_server_components, get_model_info
 from .zmq_routes import (
@@ -17,7 +18,9 @@ from .zmq_routes import (
     handle_delete_voice,
     handle_health,
     handle_ready,
-    handle_model_unload
+    handle_model_unload,
+    handle_list_engines,
+    handle_list_engine_params,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,9 +40,9 @@ class ZMQServer:
         """
         self.input_address = input_address
         self.pub_address = pub_address
-        self.context: Optional[zmq.asyncio.Context] = None
-        self.socket: Optional[zmq.asyncio.Socket] = None
-        self.pub_socket: Optional[zmq.asyncio.Socket] = None
+        self.context: zmq.asyncio.Context | None = None
+        self.socket: zmq.asyncio.Socket | None = None
+        self.pub_socket: zmq.asyncio.Socket | None = None
         self.running = False
         
         # Server components
@@ -53,7 +56,6 @@ class ZMQServer:
 
         self.db, self.voice_manager, self.voice_service = await initialize_server_components()
 
-        from ..services import get_synthesis_queue
         get_synthesis_queue()
 
         logger.info("ZMQ server components initialized")
@@ -143,10 +145,13 @@ class ZMQServer:
 
             # Determine request type
             request_type = request_dict.pop("type", "synthesize")
-            
+            session_id: str | None = request_dict.pop("session_id", None)
+
             # Route to appropriate handler
             if request_type == "synthesize":
-                await handle_synthesize(identity_frames, request_dict, self.voice_service, self._send_message)
+                async def _send(identity_frames, msg_type, data, _sid=session_id):
+                    await self._send_message(identity_frames, msg_type, data, session_id=_sid)
+                await handle_synthesize(identity_frames, request_dict, self.voice_service, _send)
             elif request_type == "list_voices":
                 await handle_list_voices(identity_frames, self.voice_service, self._send_message)
             elif request_type == "upload_voice":
@@ -159,6 +164,11 @@ class ZMQServer:
                 await handle_ready(identity_frames, self._send_message)
             elif request_type == "model_unload":
                 await handle_model_unload(identity_frames, self._send_message)
+            elif request_type == "list_engines":
+                await handle_list_engines(identity_frames, self._send_message)
+            elif request_type == "list_engine_params":
+                engine_name = request_dict.get("engine", "")
+                await handle_list_engine_params(identity_frames, self._send_message, engine_name)
             elif request_type == "model_info":
                 await self._handle_model_info(identity_frames)
             else:
@@ -173,17 +183,29 @@ class ZMQServer:
             logger.error(f"Error handling request: {e}", exc_info=True)
             await self._send_error(identity_frames, str(e))
     
-    async def _send_message(self, identity_frames: list, msg_type: bytes, data: bytes):
+    async def _send_message(
+        self,
+        identity_frames: list,
+        msg_type: bytes,
+        data: bytes,
+        session_id: str | None = None,
+    ):
         """Send a message to subscribers and/or back to the requesting DEALER.
 
-        When a PUB socket is configured: all frames are broadcast to every subscriber,
-        and error/complete frames are also ACKed back to the requesting DEALER via ROUTER
+        When a PUB socket is configured: frames are broadcast with session_id as the
+        topic prefix (first frame) so subscribers can filter by session. Falls back to
+        [msg_type, data] when no session_id is present.
+
+        error/complete frames are also ACKed back to the requesting DEALER via ROUTER
         so the upstream caller (e.g. LLM) can observe failures and completion.
 
         Without a PUB socket: all frames go back to the requesting DEALER via ROUTER only.
         """
         if self.pub_socket is not None:
-            await self.pub_socket.send_multipart([msg_type, data])
+            if session_id is not None:
+                await self.pub_socket.send_multipart([session_id.encode(), msg_type, data])
+            else:
+                await self.pub_socket.send_multipart([msg_type, data])
         # metadata and audio are stream-only — no value routing them back to the requester.
         # Everything else (complete, error, response) routes back via ROUTER so that
         # request/response callers (e.g. the network router) receive their reply.
@@ -219,7 +241,6 @@ class ZMQServer:
         logger.info("Stopping ZMQ server...")
         self.running = False
 
-        from ..services import stop_synthesis_queue
         await stop_synthesis_queue()
 
         if self.socket:

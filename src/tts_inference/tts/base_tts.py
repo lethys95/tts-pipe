@@ -2,10 +2,15 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import ClassVar
 import numpy as np
 
 
 class BaseTTSEngine(ABC):
+    engine_name: ClassVar[str]
+    # Each engine declares its synthesis params so Godot can build UI dynamically.
+    # Each entry: {name, type (float|int|string), label, min, max, step, default}
+    engine_params: ClassVar[list[dict]] = []
 
     @abstractmethod
     async def initialize(self):
