@@ -1,8 +1,8 @@
 """ZMQ request handlers."""
 
-from .generation_handler import handle_synthesize
-from .voice_handler import handle_list_voices, handle_upload_voice, handle_delete_voice
-from .utility_handler import handle_health, handle_ready, handle_model_unload, handle_list_engines, handle_list_engine_params
+from tts.server.zmq_routes.generation_handler import handle_synthesize
+from tts.server.zmq_routes.voice_handler import handle_list_voices, handle_upload_voice, handle_delete_voice
+from tts.server.zmq_routes.utility_handler import handle_health, handle_ready, handle_model_unload, handle_list_engines, handle_list_engine_params
 
 __all__ = [
     "handle_synthesize",

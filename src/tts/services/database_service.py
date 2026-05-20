@@ -3,9 +3,9 @@
 import logging
 from pathlib import Path
 
-from ..models.migrations import get_migrator
-from ..utils.config import CONFIG
-from ..models.service_dataclasses import MigrationStatus, MigrationRecord
+from tts.models.migrations import get_migrator
+from tts.utils.config import CONFIG
+from tts.models.service_dataclasses import MigrationStatus, MigrationRecord
 
 logger = logging.getLogger(__name__)
 

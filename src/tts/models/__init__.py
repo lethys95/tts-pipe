@@ -1,6 +1,6 @@
 """Data models for TTS Inference."""
 
-from .schemas import (
+from tts.models.schemas import (
     BaseVoiceConfig,
     ChatterboxVoiceConfig,
     OmniVoiceVoiceConfig,
@@ -18,7 +18,7 @@ from .schemas import (
     ErrorResponse,
     ModelInfoResponse,
 )
-from .database import VoiceDatabase
+from tts.models.database import VoiceDatabase
 
 __all__ = [
     "BaseVoiceConfig",

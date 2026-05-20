@@ -1,5 +1,5 @@
 """Utility modules for TTS Inference."""
 
-from .config import CONFIG
+from tts.utils.config import CONFIG
 
 __all__ = ["CONFIG"]

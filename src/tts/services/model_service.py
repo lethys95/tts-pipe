@@ -2,9 +2,9 @@
 
 import logging
 
-from ..tts import get_tts_engine
-from ..utils.config import CONFIG
-from ..models.service_dataclasses import ModelStatus, UnloadResult
+from tts.tts import get_tts_engine
+from tts.utils.config import CONFIG
+from tts.models.service_dataclasses import ModelStatus, UnloadResult
 
 logger = logging.getLogger(__name__)
 

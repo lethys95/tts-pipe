@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
-from .service_dataclasses import VoiceRecord
+from tts.models.service_dataclasses import VoiceRecord
 
 logger = logging.getLogger(__name__)
 

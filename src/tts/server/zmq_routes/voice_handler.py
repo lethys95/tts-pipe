@@ -6,7 +6,7 @@ import io
 import logging
 import msgpack
 
-from ...services import VoiceService
+from tts.services import VoiceService
 
 logger = logging.getLogger(__name__)
 

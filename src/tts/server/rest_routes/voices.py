@@ -4,10 +4,10 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 
-from ...models import VoiceInfo, VoiceListResponse, VoiceUploadResponse, VoiceDeleteResponse, VoiceRenameResponse
-from ...auth import verify_api_key
-from ...services import VoiceService
-from ..dependencies import get_voice_service
+from tts.models import VoiceInfo, VoiceListResponse, VoiceUploadResponse, VoiceDeleteResponse, VoiceRenameResponse
+from tts.auth import verify_api_key
+from tts.services import VoiceService
+from tts.server.dependencies import get_voice_service
 
 logger = logging.getLogger(__name__)
 

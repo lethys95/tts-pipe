@@ -14,6 +14,7 @@ import torch
 from omnivoice import OmniVoice
 
 from tts.tts.base_tts import BaseTTSEngine
+from tts.tts.omnivoice_spec import ENGINE_NAME, ENGINE_PARAMS
 from tts.utils.audio_utils import encode_wav_complete
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,8 @@ logger = logging.getLogger(__name__)
 
 class OmniVoiceTTSEngine(BaseTTSEngine):
     """OmniVoice TTS engine — voice cloning, voice design, 600+ language support."""
-    engine_name = "omnivoice"
-    engine_params = [
-        {"name": "speed",          "type": "float", "label": "Speed",           "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
-        {"name": "num_step",       "type": "int",   "label": "Diffusion Steps", "min": 1,   "max": 200, "step": 1,    "default": 50},
-        {"name": "guidance_scale", "type": "float", "label": "Guidance Scale",  "min": 0.1, "max": 5.0, "step": 0.1,  "default": 1.0},
-    ]
+    engine_name = ENGINE_NAME
+    engine_params = ENGINE_PARAMS
 
     def __init__(self, inactivity_timeout: int = 600, keep_warm: bool = False):
         self.model: OmniVoice | None = None

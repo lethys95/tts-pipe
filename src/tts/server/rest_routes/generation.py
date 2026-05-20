@@ -5,14 +5,14 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
-from ...models import TTSRequest
-from ...models.schemas import OmniVoiceVoiceConfig
-from ...auth import verify_api_key
-from ...services import TTSService, VoiceService
-from ...utils.config import CONFIG
-from ...utils.audio_utils import AudioStreamEncoder
-from ..common import load_voice_reference_or_raise, get_output_sample_rate
-from ..dependencies import get_voice_service
+from tts.models import TTSRequest
+from tts.models.schemas import OmniVoiceVoiceConfig
+from tts.auth import verify_api_key
+from tts.services import TTSService, VoiceService
+from tts.utils.config import CONFIG
+from tts.utils.audio_utils import AudioStreamEncoder
+from tts.server.common import load_voice_reference_or_raise, get_output_sample_rate
+from tts.server.dependencies import get_voice_service
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,11 @@
 [project]
-name = "tts-inference"
+name = "tts"
 version = "0.1.0"
 description = "TTS inference server with FastAPI and ZMQ streaming support"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "ainet-common",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "websockets>=13.0",
@@ -16,6 +17,10 @@ dependencies = [
     "setuptools>=80.9.0",
     "msgpack>=1.0.0",
 ]
+
+[tool.uv.sources]
+ainet-common = { path = "../common" }
+fish-speech = { path = "lib/fish-speech", editable = true }
 
 [project.optional-dependencies]
 chatterbox = [
@@ -29,11 +34,11 @@ omnivoice = [
     "omnivoice>=0.1.5",
 ]
 fish-speech = [
-    "fish-speech @ git+https://github.com/fishaudio/fish-speech.git",
+    "fish-speech",
 ]
 
 [project.scripts]
-tts-inference = "tts.cli:main"
+tts = "tts.cli:main"
 
 [tool.uv]
 conflicts = [
@@ -46,6 +51,9 @@ conflicts = [
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tts"]
 
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]

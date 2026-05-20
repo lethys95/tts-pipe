@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from ...models import HealthResponse, ReadyResponse
-from ...auth import verify_api_key
-from ...services import ModelService
+from tts.models import HealthResponse, ReadyResponse
+from tts.auth import verify_api_key
+from tts.services import ModelService
 
 logger = logging.getLogger(__name__)
 

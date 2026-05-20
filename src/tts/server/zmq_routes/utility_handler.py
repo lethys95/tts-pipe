@@ -4,9 +4,8 @@ import logging
 import msgpack
 from dataclasses import asdict
 
-from ...services import ModelService
-from ...tts.base_tts import BaseTTSEngine
-from ...tts import engine as _engine_module  # ensure engine subclasses are imported
+from tts.services import ModelService
+from tts.tts.specs import engine_params, supported_engines
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +43,15 @@ async def handle_model_unload(identity_frames: list, send_message):
 
 
 async def handle_list_engines(identity_frames: list, send_message):
-    engines = [cls.engine_name for cls in BaseTTSEngine.__subclasses__()]
-    await _send_response(identity_frames, send_message, {"engines": engines})
+    """Return every engine the TTS project supports, not just those importable
+    in the current venv. Reads from the static catalog in tts.tts.specs so this
+    works regardless of which engine venv is active."""
+    await _send_response(identity_frames, send_message, {"engines": supported_engines()})
 
 
 async def handle_list_engine_params(identity_frames: list, send_message, engine_name: str):
-    for cls in BaseTTSEngine.__subclasses__():
-        if cls.engine_name == engine_name:
-            await _send_response(identity_frames, send_message, {"params": cls.engine_params})
-            return
-    await _send_error(identity_frames, send_message, f"Unknown engine: {engine_name!r}")
+    params = engine_params(engine_name)
+    if params is None:
+        await _send_error(identity_frames, send_message, f"Unknown engine: {engine_name!r}")
+        return
+    await _send_response(identity_frames, send_message, {"params": params})

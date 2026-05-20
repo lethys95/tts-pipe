@@ -6,7 +6,7 @@ import logging
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from ..utils.config import CONFIG
+from tts.utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 

@@ -1,17 +1,26 @@
 """Click CLI for TTS Inference."""
 
+import os
 import sys
-import uvicorn
 import asyncio
 import logging
 from textwrap import dedent
 
-import click
+from tts.utils.logging import setup_logging
+from tts.utils.config import CONFIG
 
-from .utils.logging import setup_logging
-from .utils.config import CONFIG
-from .server import run_zmq_server
-from .services import TTSService, DatabaseService
+# CUDA_VISIBLE_DEVICES must be set before any torch import. We respect a
+# value already in the environment (ad-hoc override); otherwise we apply
+# the config-defined GPU. This is why the tts.server import is deferred
+# below.
+if "CUDA_VISIBLE_DEVICES" not in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.gpu_device)
+
+import uvicorn  # noqa: E402
+import click  # noqa: E402
+
+from tts.server import run_zmq_server  # noqa: E402
+from tts.services import TTSService, DatabaseService  # noqa: E402
 
 
 @click.group()

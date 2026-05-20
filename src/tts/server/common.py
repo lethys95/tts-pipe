@@ -2,10 +2,10 @@
 import logging
 import numpy as np
 
-from ..models import VoiceDatabase, TTSRequest
-from ..tts import get_tts_engine, VoiceManager
-from ..services import VoiceService
-from ..utils.config import CONFIG
+from tts.models import VoiceDatabase, TTSRequest
+from tts.tts import get_tts_engine, VoiceManager
+from tts.services import VoiceService
+from tts.utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 

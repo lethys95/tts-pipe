@@ -3,12 +3,12 @@
 import logging
 import msgpack
 
-from ...models import TTSRequest
-from ...models.schemas import OmniVoiceVoiceConfig
-from ...services import TTSService, VoiceService
-from ...utils.audio_utils import AudioStreamEncoder
-from ...utils.config import CONFIG
-from ..common import load_voice_reference_or_raise, get_output_sample_rate
+from tts.models import TTSRequest
+from tts.models.schemas import OmniVoiceVoiceConfig
+from tts.services import TTSService, VoiceService
+from tts.utils.audio_utils import AudioStreamEncoder
+from tts.utils.config import CONFIG
+from tts.server.common import load_voice_reference_or_raise, get_output_sample_rate
 
 _ENGINE_DEFAULT_VOICE_CONFIG = {
     "chatterbox": {"type": "chatterbox"},

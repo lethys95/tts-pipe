@@ -9,64 +9,21 @@ from typing import AsyncIterator
 from datetime import datetime
 from textwrap import dedent
 import logging
-from scipy import signal
 
 from chatterbox.tts import ChatterboxTTS
 from chatterbox.tts_turbo import ChatterboxTurboTTS
 
-from .base_tts import BaseTTSEngine
-from ..utils.audio_utils import encode_wav_complete
+from tts.tts.base_tts import BaseTTSEngine
+from tts.tts.chatterbox_spec import ENGINE_NAME, ENGINE_PARAMS
+from tts.utils.audio_utils import encode_wav_complete
 
 logger = logging.getLogger(__name__)
 
 
-def resample_audio_for_speed(audio: np.ndarray, speed: float) -> np.ndarray:
-    """Resample audio to change playback speed.
-    
-    Args:
-        audio: Audio array (float32, normalized to [-1, 1])
-        speed: Speed multiplier (>1.0 = faster, <1.0 = slower)
-        
-    Returns:
-        Resampled audio array
-    """
-    if speed == 1.0:
-        return audio
-    
-    try:
-        # Calculate new length
-        new_length = int(len(audio) / speed)
-        
-        if new_length < 1:
-            logger.warning(f"Speed {speed} results in audio too short, using speed 1.0")
-            return audio
-        
-        # Resample using polyphase filtering (high quality)
-        resampled = signal.resample(audio, new_length)
-        
-        # Ensure float32 and proper range
-        resampled = np.clip(np.asarray(resampled), -1.0, 1.0).astype(np.float32)
-        
-        logger.debug(f"Resampled audio from {len(audio)} to {len(resampled)} samples (speed={speed})")
-        return resampled
-        
-    except ImportError:
-        logger.warning("scipy not available, falling back to numpy-based resampling")
-        # Fallback: simple linear interpolation
-        indices = np.linspace(0, len(audio) - 1, int(len(audio) / speed))
-        resampled = np.interp(indices, np.arange(len(audio)), audio)
-        return resampled.astype(np.float32)
-
-
 class ChatterboxTTSEngine(BaseTTSEngine):
     """ChatterboxTTS engine with voice cloning and turbo support."""
-    engine_name = "chatterbox"
-    engine_params = [
-        {"name": "speed",       "type": "float", "label": "Speed",       "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
-        {"name": "temperature", "type": "float", "label": "Temperature", "min": 0.1, "max": 2.0, "step": 0.05, "default": 0.8},
-        {"name": "exaggeration","type": "float", "label": "Exaggeration","min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5},
-        {"name": "cfg_weight",  "type": "float", "label": "CFG Weight",  "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.0},
-    ]
+    engine_name = ENGINE_NAME
+    engine_params = ENGINE_PARAMS
     
     def __init__(self, inactivity_timeout: int = 600, keep_warm: bool = False):
         """Initialize ChatterboxTTS engine.
@@ -245,7 +202,6 @@ class ChatterboxTTSEngine(BaseTTSEngine):
         text: str,
         voice_id: str,
         voice_reference: np.ndarray,
-        speed: float = 1.0,
         sample_rate: int | None = None,
         use_turbo: bool = False,
         exaggeration: float = 0.5,
@@ -255,12 +211,11 @@ class ChatterboxTTSEngine(BaseTTSEngine):
         **model_params
     ) -> AsyncIterator[tuple[np.ndarray, int]]:
         """Generate speech audio with streaming support.
-        
+
         Args:
             text: Text to synthesize
             voice_id: Voice ID (for compatibility, not used by Chatterbox)
             voice_reference: Reference audio for voice cloning (numpy array)
-            speed: Speech speed multiplier
             sample_rate: Output sample rate (defaults to model.sr)
             use_turbo: Use ChatterboxTurboTTS instead of ChatterboxTTS
             exaggeration: Exaggeration level for expressiveness (0.0-1.0)
@@ -351,11 +306,6 @@ class ChatterboxTTSEngine(BaseTTSEngine):
                 # Convert to float32 if needed
                 if audio_array.dtype != np.float32:
                     audio_array = audio_array.astype(np.float32)
-                
-                # Apply speed adjustment if needed
-                if speed != 1.0:
-                    logger.info(f"Applying speed adjustment: {speed}x")
-                    audio_array = resample_audio_for_speed(audio_array, speed)
                 
                 # Chunk the audio for streaming (e.g., 1 second chunks)
                 chunk_size = output_sr  # 1 second chunks

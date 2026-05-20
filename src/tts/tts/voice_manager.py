@@ -6,8 +6,8 @@ import wave
 import numpy as np
 from pathlib import Path
 
-from ..models.database import VoiceDatabase
-from ..utils.config import CONFIG
+from tts.models.database import VoiceDatabase
+from tts.utils.config import CONFIG
 
 logger = logging.getLogger(__name__)
 

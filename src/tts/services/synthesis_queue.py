@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..tts import get_tts_engine
+from tts.tts import get_tts_engine
 
 logger = logging.getLogger(__name__)
 

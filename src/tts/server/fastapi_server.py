@@ -6,11 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from ..utils.config import CONFIG
-from . import dependencies
-from .common import initialize_server_components
-from .rest_routes import generation_router, voices_router, utilities_router
-from ..services import get_synthesis_queue, stop_synthesis_queue
+from tts.utils.config import CONFIG
+from tts.server import dependencies
+from tts.server.common import initialize_server_components
+from tts.server.rest_routes import generation_router, voices_router, utilities_router
+from tts.services import get_synthesis_queue, stop_synthesis_queue
 
 logger = logging.getLogger(__name__)
 

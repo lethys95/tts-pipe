@@ -3,9 +3,9 @@
 import logging
 import numpy as np
 
-from ..tts import VoiceManager
-from ..models import VoiceDatabase
-from ..models.service_dataclasses import VoiceRecord
+from tts.tts import VoiceManager
+from tts.models import VoiceDatabase
+from tts.models.service_dataclasses import VoiceRecord
 
 logger = logging.getLogger(__name__)
 

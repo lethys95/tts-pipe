@@ -8,10 +8,12 @@ import msgpack
 import zmq
 import zmq.asyncio
 
-from ..services import get_synthesis_queue, stop_synthesis_queue
-from ..utils.config import CONFIG
-from .common import initialize_server_components, get_model_info
-from .zmq_routes import (
+from ainet.config import ConfigSubscriber
+
+from tts.services import get_synthesis_queue, stop_synthesis_queue
+from tts.utils.config import CONFIG
+from tts.server.common import initialize_server_components, get_model_info
+from tts.server.zmq_routes import (
     handle_synthesize,
     handle_list_voices,
     handle_upload_voice,
@@ -44,11 +46,15 @@ class ZMQServer:
         self.socket: zmq.asyncio.Socket | None = None
         self.pub_socket: zmq.asyncio.Socket | None = None
         self.running = False
-        
+
         # Server components
         self.db = None
         self.voice_manager = None
         self.voice_service = None
+
+        # Hot-reload: subscribe to supervisor PUB for tts config_changed events.
+        self._config_sub: ConfigSubscriber | None = None
+        self._config_sub_task: asyncio.Task | None = None
     
     async def initialize(self):
         """Initialize server components."""
@@ -76,7 +82,12 @@ class ZMQServer:
             self.pub_socket = self.context.socket(zmq.PUB)
             self.pub_socket.bind(self.pub_address)
             logger.info(f"ZMQ PUB socket broadcasting on {self.pub_address}")
-        
+
+        # Connects out to supervisor's PUB (no new external surface).
+        self._config_sub = ConfigSubscriber("tts", ctx=self.context)
+        self._config_sub.on_change(lambda keys: CONFIG.reload(keys))
+        self._config_sub_task = asyncio.create_task(self._config_sub.run())
+
         self.running = True
         
         # Main server loop
@@ -242,6 +253,11 @@ class ZMQServer:
         self.running = False
 
         await stop_synthesis_queue()
+
+        if self._config_sub is not None:
+            self._config_sub.close()
+        if self._config_sub_task is not None:
+            self._config_sub_task.cancel()
 
         if self.socket:
             self.socket.close()

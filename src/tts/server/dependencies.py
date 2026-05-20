@@ -2,9 +2,9 @@
 
 from typing import Optional
 
-from ..services import VoiceService
-from ..models import VoiceDatabase
-from ..tts import VoiceManager
+from tts.services import VoiceService
+from tts.models import VoiceDatabase
+from tts.tts import VoiceManager
 
 # Global instances (set during lifespan)
 db: Optional[VoiceDatabase] = None
