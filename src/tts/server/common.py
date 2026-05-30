@@ -1,5 +1,7 @@
 """Shared server initialization components and utilities."""
 import logging
+from collections.abc import Awaitable, Callable
+
 import numpy as np
 
 from tts.models import VoiceDatabase, TTSRequest
@@ -10,8 +12,15 @@ from tts.utils.config import CONFIG
 logger = logging.getLogger(__name__)
 
 
-async def initialize_server_components() -> tuple[VoiceDatabase, VoiceManager, VoiceService]:
-    """Initialize shared server components: db, voice_manager, voice_service, tts_engine."""
+async def initialize_server_components(
+    state_publisher: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[VoiceDatabase, VoiceManager, VoiceService]:
+    """Initialize shared server components: db, voice_manager, voice_service, tts_engine.
+
+    If `state_publisher` is given it is wired into the engine before
+    `initialize()` runs, so subscribers see the full 'loading' → 'ready'
+    transition (engine load can take tens of seconds).
+    """
     logger.info("Initializing shared server components...")
 
     try:
@@ -29,6 +38,8 @@ async def initialize_server_components() -> tuple[VoiceDatabase, VoiceManager, V
     voice_service = VoiceService(voice_manager, db)
 
     tts_engine = get_tts_engine()
+    if state_publisher is not None:
+        tts_engine.set_state_publisher(state_publisher)
     await tts_engine.initialize()
 
     logger.info("Shared server components initialized")

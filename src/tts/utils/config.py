@@ -49,7 +49,7 @@ class Config:
     Priority: env var > config.toml > hardcoded default.
     """
 
-    HOT_KEYS: frozenset[str] = frozenset({"offload_timeout", "keep_warm"})
+    HOT_KEYS: frozenset[str] = frozenset({"offload_timeout", "keep_warm", "default_voice_id"})
 
     def __init__(self):
         self.tts_engine = _env("TTS_ENGINE") or _cfg("engine") or "chatterbox"
@@ -62,7 +62,10 @@ class Config:
         self.database_path = self.voice_dir / "voices.db"
 
         self.api_key = _env("TTS_API_KEY", "CHATTERBOX_API_KEY")
-        self.default_voice_id = _env("TTS_DEFAULT_VOICE_ID", "CHATTERBOX_DEFAULT_VOICE_ID")
+        self.default_voice_id = (
+            _env("TTS_DEFAULT_VOICE_ID", "CHATTERBOX_DEFAULT_VOICE_ID")
+            or _cfg("default_voice_id", "")
+        )
 
         self.fastapi_host = _env("TTS_FASTAPI_HOST", "CHATTERBOX_FASTAPI_HOST", "0.0.0.0")
         self.fastapi_port = int(_env("TTS_FASTAPI_PORT", "CHATTERBOX_FASTAPI_PORT", "20480"))
@@ -99,6 +102,14 @@ class Config:
                 if new != self.keep_warm:
                     logger.info("Config reload: keep_warm %s → %s", self.keep_warm, new)
                     self.keep_warm = new
+            elif key == "default_voice_id":
+                new = (
+                    _env("TTS_DEFAULT_VOICE_ID", "CHATTERBOX_DEFAULT_VOICE_ID")
+                    or _cfg("default_voice_id", "")
+                )
+                if new != self.default_voice_id:
+                    logger.info("Config reload: default_voice_id %r → %r", self.default_voice_id, new)
+                    self.default_voice_id = new
 
     @staticmethod
     def _read_offload_timeout() -> int:

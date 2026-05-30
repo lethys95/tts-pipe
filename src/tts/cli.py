@@ -6,6 +6,8 @@ import asyncio
 import logging
 from textwrap import dedent
 
+from ainet.errors import already_reported, classify_exception, install_thread_excepthook, report
+
 from tts.utils.logging import setup_logging
 from tts.utils.config import CONFIG
 
@@ -15,6 +17,12 @@ from tts.utils.config import CONFIG
 # below.
 if "CUDA_VISIBLE_DEVICES" not in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.gpu_device)
+
+# Must be installed before any engine import — fish-speech spawns its own
+# worker thread pool inside its module init path, and CUDA OOM in those
+# threads otherwise hangs the main process in "loading" forever (validated
+# under VRAM pressure; see docs/error_surfacing.md).
+install_thread_excepthook("tts")
 
 import uvicorn  # noqa: E402
 import click  # noqa: E402
@@ -103,6 +111,16 @@ def zmq(input_address, pub_address, log_level, offload_timeout, keep_warm, engin
         logger.info("Received interrupt signal, shutting down")
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
+        # Skip if a deeper layer (engine init, safe_bind) already classified it.
+        if not already_reported(e):
+            kind, detail = classify_exception(e)
+            report(
+                service="tts",
+                kind=kind,
+                message=f"TTS server failed during startup: {e}",
+                detail=detail,
+                recoverable=True,
+            )
         sys.exit(1)
 
 

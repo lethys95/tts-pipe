@@ -11,6 +11,8 @@ from textwrap import dedent
 import numpy as np
 import torch
 
+from ainet.errors import classify_exception, mark_reported, report
+
 from omnivoice import OmniVoice
 
 from tts.tts.base_tts import BaseTTSEngine
@@ -41,9 +43,13 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         self._is_offloaded = False
 
     async def initialize(self):
+        # Idempotent — see ChatterboxTTSEngine.initialize for rationale.
+        if self.is_loaded():
+            return
         logger.info(dedent(f"""
         Loading OmniVoice model on {self.device}...
         =================================="""))
+        await self._emit_state("loading")
         try:
             dtype = torch.float16 if self.device != "cpu" else torch.float32
             loop = asyncio.get_event_loop()
@@ -68,8 +74,21 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
             else:
                 logger.info("Keep-warm mode enabled, model will remain loaded")
 
+            await self._emit_state("ready")
+
         except Exception as e:
             logger.error("Failed to load OmniVoice model: {}".format(e))
+            kind, detail = classify_exception(e)
+            detail["engine"] = "omnivoice"
+            report(
+                service="tts",
+                kind=kind,
+                message=f"omnivoice engine failed to load: {e}",
+                detail=detail,
+                recoverable=True,
+            )
+            mark_reported(e)
+            await self._emit_state("error")
             raise
 
     @property

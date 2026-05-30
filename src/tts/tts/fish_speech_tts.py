@@ -10,6 +10,8 @@ from textwrap import dedent
 import numpy as np
 import torch
 
+from ainet.errors import classify_exception, mark_reported, report
+
 from fish_speech.inference_engine import TTSInferenceEngine
 from fish_speech.models.text2semantic.inference import launch_thread_safe_queue
 from fish_speech.models.dac.inference import load_model as load_decoder_model
@@ -46,56 +48,84 @@ class FishSpeechTTSEngine(BaseTTSEngine):
         self._is_offloaded = False
 
     async def initialize(self):
+        # Idempotent — see ChatterboxTTSEngine.initialize for rationale. Cheap
+        # to skip here, expensive to repeat (fish-speech re-spawns its worker
+        # thread pool and reloads the decoder on every call otherwise).
+        if self.is_loaded():
+            return
         logger.info(dedent(f"""
         Loading FishSpeech model on {self.device}...
         =================================="""))
+        await self._emit_state("loading")
 
-        precision = torch.float16 if self.device != "cpu" else torch.float32
-        checkpoint_path = CONFIG.fish_speech_checkpoint_path
-        decoder_path = CONFIG.fish_speech_decoder_path
+        try:
+            precision = torch.float16 if self.device != "cpu" else torch.float32
+            checkpoint_path = CONFIG.fish_speech_checkpoint_path
+            decoder_path = CONFIG.fish_speech_decoder_path
 
-        loop = asyncio.get_event_loop()
+            loop = asyncio.get_event_loop()
 
-        self._llama_queue = await loop.run_in_executor(
-            None,
-            lambda: launch_thread_safe_queue(
-                checkpoint_path=checkpoint_path,
-                device=self.device,
+            self._llama_queue = await loop.run_in_executor(
+                None,
+                lambda: launch_thread_safe_queue(
+                    checkpoint_path=checkpoint_path,
+                    device=self.device,
+                    precision=precision,
+                    compile=False,
+                ),
+            )
+
+            self._decoder_model = await loop.run_in_executor(
+                None,
+                lambda: load_decoder_model(
+                    config_name="modded_dac_vq",
+                    checkpoint_path=decoder_path,
+                    device=self.device,
+                ),
+            )
+
+            self._engine = TTSInferenceEngine(
+                llama_queue=self._llama_queue,
+                decoder_model=self._decoder_model,
                 precision=precision,
                 compile=False,
-            ),
-        )
+            )
 
-        self._decoder_model = await loop.run_in_executor(
-            None,
-            lambda: load_decoder_model(
-                config_name="modded_dac_vq",
-                checkpoint_path=decoder_path,
-                device=self.device,
-            ),
-        )
+            self._default_sr = getattr(self._decoder_model, "sample_rate", 44100)
 
-        self._engine = TTSInferenceEngine(
-            llama_queue=self._llama_queue,
-            decoder_model=self._decoder_model,
-            precision=precision,
-            compile=False,
-        )
-
-        self._default_sr = getattr(self._decoder_model, "sample_rate", 44100)
-
-        logger.info(dedent(f"""
+            logger.info(dedent(f"""
         FishSpeech model loaded successfully
         Sample rate: {self._default_sr} Hz
         =================================="""))
 
-        self.last_activity_time = datetime.now()
-        self._is_offloaded = False
+            self.last_activity_time = datetime.now()
+            self._is_offloaded = False
 
-        if not self.keep_warm:
-            self._start_inactivity_monitor()
-        else:
-            logger.info("Keep-warm mode enabled, model will remain loaded")
+            if not self.keep_warm:
+                self._start_inactivity_monitor()
+            else:
+                logger.info("Keep-warm mode enabled, model will remain loaded")
+
+            await self._emit_state("ready")
+
+        except Exception as e:
+            # OOM in fish-speech's worker thread bypasses this except — the
+            # threading.excepthook installed in cli.py is what catches that.
+            # This block handles failures that surface on the main asyncio
+            # task: missing checkpoint paths, decoder load failures, etc.
+            logger.error("Failed to load FishSpeech model: %s", e)
+            kind, detail = classify_exception(e)
+            detail["engine"] = "fish-speech"
+            report(
+                service="tts",
+                kind=kind,
+                message=f"fish-speech engine failed to load: {e}",
+                detail=detail,
+                recoverable=True,
+            )
+            mark_reported(e)
+            await self._emit_state("error")
+            raise
 
     @property
     def sample_rate(self) -> int:
@@ -129,15 +159,31 @@ class FishSpeechTTSEngine(BaseTTSEngine):
 
         logger.info("Offloading FishSpeech model from memory...")
         try:
+            # Signal fish-speech's LLM worker thread to exit before dropping
+            # references. The worker (see launch_thread_safe_queue in
+            # fish_speech/models/text2semantic/inference.py) holds the ~9GB
+            # transformer in thread-local variables and blocks on
+            # input_queue.get(); a `None` sentinel breaks its `while True`
+            # loop. Without this, the thread keeps running and the model
+            # stays pinned on the GPU even after our references are gone.
+            if self._llama_queue is not None:
+                self._llama_queue.put(None)
+
             self._engine = None
             self._llama_queue = None
             self._decoder_model = None
+
+            # Give the worker a moment to drop its references before we ask
+            # CUDA to reclaim. empty_cache only releases allocations that have
+            # no live tensors pointing at them.
+            await asyncio.sleep(0.5)
 
             if self.device == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
             self._is_offloaded = True
             logger.info("FishSpeech model offloaded")
+            await self._emit_state("offloaded")
         except Exception as e:
             logger.error(f"Error during model offloading: {e}", exc_info=True)
             raise

@@ -86,8 +86,9 @@ async def handle_synthesize(identity_frames: list, request_dict: dict, voice_ser
         if not voice_id and not voice_description:
             await _send_error(
                 identity_frames, send_message,
-                "No voice_id provided and no default configured (TTS_DEFAULT_VOICE_ID). "
-                "For OmniVoice voice design, use OmniVoiceVoiceConfig with voice_description."
+                "No voice_id provided and no default configured. Set tts.default_voice_id "
+                "in config.toml, or include voice_config.voice_id in the request. "
+                "For OmniVoice voice design, supply voice_config.voice_description instead."
             )
             return
 

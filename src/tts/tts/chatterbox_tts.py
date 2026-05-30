@@ -10,6 +10,8 @@ from datetime import datetime
 from textwrap import dedent
 import logging
 
+from ainet.errors import classify_exception, mark_reported, report
+
 from chatterbox.tts import ChatterboxTTS
 from chatterbox.tts_turbo import ChatterboxTurboTTS
 
@@ -45,37 +47,58 @@ class ChatterboxTTSEngine(BaseTTSEngine):
         self._is_offloaded = False
         
     async def initialize(self):
-        """Initialize and load the TTS model (regular by default)."""
+        """Initialize and load the TTS model (regular by default).
+
+        Idempotent: returns immediately if the regular model is already loaded
+        and not in an offloaded state. `_ensure_loaded` is the right entry
+        point for "reload after offload."
+        """
+        if self.is_loaded():
+            return
         logger.info(
             dedent(f"""
         Loading ChatterboxTTS model on {self.device}...
         ==================================""")
         )
+        await self._emit_state("loading")
         try:
             self.model_regular = ChatterboxTTS.from_pretrained(device=self.device)
-            
+
             # Get sample rate from model
             self._default_sr = getattr(self.model_regular, 'sr', 24000)
-            
+
             logger.info(
                 dedent(f"""
         ChatterboxTTS model loaded successfully
         Sample rate: {self._default_sr} Hz
         ==================================""")
             )
-            
+
             # Update activity time and start monitoring
             self.last_activity_time = datetime.now()
             self._is_offloaded = False
-            
+
             # Only start monitoring if keep_warm is disabled
             if not self.keep_warm:
                 self._start_inactivity_monitor()
             else:
                 logger.info("Keep-warm mode enabled, model will remain loaded")
-            
+
+            await self._emit_state("ready")
+
         except Exception as e:
             logger.error("Failed to load ChatterboxTTS model: {}".format(e))
+            kind, detail = classify_exception(e)
+            detail["engine"] = "chatterbox"
+            report(
+                service="tts",
+                kind=kind,
+                message=f"chatterbox engine failed to load: {e}",
+                detail=detail,
+                recoverable=True,
+            )
+            mark_reported(e)
+            await self._emit_state("error")
             raise
     
     async def _ensure_turbo_loaded(self):

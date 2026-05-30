@@ -1,9 +1,21 @@
 """Abstract base class for TTS engines."""
 
+import logging
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import ClassVar
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
+# Coarse engine lifecycle states broadcast on the TTS PUB socket so clients
+# (e.g. Godot) can show real readiness rather than systemd's "active" — which
+# fires the moment the process starts, ~25s before fish-speech is actually
+# ready to serve a synth request. Valid values:
+#   "loading" | "ready" | "error" | "offloaded"
+# "error" indicates the engine failed to load and the service is not usable;
+# clients should also expect a `service_error` event on the supervisor PUB.
+StatePublisher = Callable[[str], Awaitable[None]]
 
 
 class BaseTTSEngine(ABC):
@@ -11,6 +23,21 @@ class BaseTTSEngine(ABC):
     # Each engine declares its synthesis params so Godot can build UI dynamically.
     # Each entry: {name, type (float|int|string), label, min, max, step, default}
     engine_params: ClassVar[list[dict]] = []
+
+    state_publisher: StatePublisher | None = None
+
+    def set_state_publisher(self, publisher: StatePublisher | None) -> None:
+        self.state_publisher = publisher
+
+    async def _emit_state(self, state: str) -> None:
+        """Emit a lifecycle state ("loading" | "ready" | "offloaded") via the
+        configured publisher. Silent no-op if no publisher is set."""
+        if self.state_publisher is None:
+            return
+        try:
+            await self.state_publisher(state)
+        except Exception as e:
+            logger.warning("State publisher failed (%s): %s", state, e)
 
     @abstractmethod
     async def initialize(self):

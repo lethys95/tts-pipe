@@ -9,6 +9,7 @@ import zmq
 import zmq.asyncio
 
 from ainet.config import ConfigSubscriber
+from ainet.errors import safe_bind
 
 from tts.services import get_synthesis_queue, stop_synthesis_queue
 from tts.utils.config import CONFIG
@@ -60,28 +61,44 @@ class ZMQServer:
         """Initialize server components."""
         logger.info("Initializing ZMQ server components...")
 
-        self.db, self.voice_manager, self.voice_service = await initialize_server_components()
+        self.db, self.voice_manager, self.voice_service = await initialize_server_components(
+            state_publisher=self._publish_engine_state,
+        )
 
         get_synthesis_queue()
 
         logger.info("ZMQ server components initialized")
-    
+
+    async def _publish_engine_state(self, state: str) -> None:
+        """Broadcast 'loading' | 'ready' | 'offloaded' on the TTS PUB stream
+        with topic frame b'engine_state'. Lets clients show real engine
+        readiness instead of systemd's 'active' (which fires ~25s before
+        fish-speech can actually serve)."""
+        if self.pub_socket is None:
+            return
+        payload = msgpack.packb(
+            {"state": state, "engine": CONFIG.tts_engine},
+            use_bin_type=True,
+        )
+        await self.pub_socket.send_multipart([b"engine_state", payload])
+        logger.info("engine_state → %s", state)
+
     async def start(self):
         """Start the ZMQ ROUTER server."""
-        await self.initialize()
-        
-        # Create ZMQ context and socket
+        # ZMQ sockets must exist before engine.initialize() so the engine can
+        # emit "loading" → "ready" state events as it loads. Model load on
+        # fish-speech takes ~25s; we want clients to see the transition.
         self.context = zmq.asyncio.Context()
         self.socket = self.context.socket(zmq.ROUTER)
-        
-        # Bind input socket
-        self.socket.bind(self.input_address)
+        safe_bind(self.socket, self.input_address, "tts")
         logger.info(f"ZMQ ROUTER server listening on {self.input_address}")
-        
+
         if self.pub_address:
             self.pub_socket = self.context.socket(zmq.PUB)
-            self.pub_socket.bind(self.pub_address)
+            safe_bind(self.pub_socket, self.pub_address, "tts")
             logger.info(f"ZMQ PUB socket broadcasting on {self.pub_address}")
+
+        await self.initialize()
 
         # Connects out to supervisor's PUB (no new external surface).
         self._config_sub = ConfigSubscriber("tts", ctx=self.context)
@@ -279,12 +296,17 @@ async def run_zmq_server(input_address: str = "tcp://localhost:20501", pub_addre
         pub_address: Address to bind the PUB socket to (empty string disables PUB)
     """
     server = ZMQServer(input_address, pub_address)
-    
+
     try:
         await server.start()
     except KeyboardInterrupt:
         logger.info("Received interrupt signal")
     except Exception as e:
+        # Don't swallow — the cli.py top-level except classifies and reports
+        # the failure to the supervisor before exiting non-zero. Eating the
+        # exception here would leave systemd seeing a clean exit and Godot
+        # seeing no signal.
         logger.error(f"Server error: {e}", exc_info=True)
+        raise
     finally:
         await server.stop()
